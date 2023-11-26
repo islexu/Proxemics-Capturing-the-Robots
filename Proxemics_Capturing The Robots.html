@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proxemic Pioneers</title>
+<style>
+/* CSS代码 */
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: start;
+}
+#game-board {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  grid-template-rows: repeat(9, 1fr);
+  gap: 5px;
+  width: 450px; /* 根据需要调整宽度 */
+  height: 450px; /* 根据需要调整高度 */
+  margin: 20px;
+  border: 2px solid #333;
+}
+.cell {
+  width: 100%;
+  height: 100%;
+  background-color: #f0f0f0;
+  border: 1px solid #ddd;
+  cursor: pointer;
+}
+.robot.intimate { background-color: green; }
+.robot.personal { background-color: yellow; }
+.robot.social { background-color: red; }
+.robot.public { background-color: black; }
+.human.player1 { background-color: #00ccff; }
+.human.player2 { background-color: #002fff; }
+
+.valid-placement {
+  border: 2px solid green; /* 高亮合法放置的格子 */
+}
+#player-annotations {
+  margin: 20px;
+  padding: 10px;
+  border: 1px solid #ccc;
+}
+.annotation {
+  margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+}
+.color-indicator {
+  width: 20px;
+  height: 20px;
+  margin-right: 10px;
+  border: 1px solid #000;
+}
+.intimate .color-indicator { background-color: green; }
+.personal .color-indicator { background-color: yellow; }
+.social .color-indicator { background-color:red; }
+.public .color-indicator { background-color: black; }
+.player1 .color-indicator { background-color: #00ccff; }
+.player2 .color-indicator { background-color:#002fff; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div id="player-annotations">
+    <div class="annotation"><strong>Robots:</strong></div>
+    <div class="annotation intimate"><div class="color-indicator"></div>Intimate Robot</div>
+    <div class="annotation personal"><div class="color-indicator"></div>Personal Robot</div>
+    <div class="annotation social"><div class="color-indicator"></div>Social Robot</div>
+    <div class="annotation public"><div class="color-indicator"></div>Public Robot</div>
+    <div class="annotation"><strong>Players:</strong></div>
+    <div class="annotation player1"><div class="color-indicator"></div>Player 1</div>
+    <div class="annotation player2"><div class="color-indicator"></div>Player 2</div>
+  </div>
+  <div id="game-board"></div>
+</div>
+<script>
+// JavaScript代码
+const gameBoard = document.getElementById('game-board');
+let robotPlacements = 0;
+let humanPlacements = 0;
+const robots = ['intimate', 'personal', 'social', 'public'];
+const proxemicsRules = {
+  intimate: 1,
+  personal: 2,
+  social: 3,
+  public: 4
+};
+
+let currentTurn = 1; // 从第一个机器人开始
+
+// 初始化棋盘
+function createBoard() {
+  for (let i = 0; i < 81; i++) {
+    const cell = document.createElement('div');
+    cell.classList.add('cell');
+    cell.addEventListener('click', cellClicked);
+    gameBoard.appendChild(cell);
+  }
+}
+
+// 处理格子点击
+function cellClicked() {
+  if (robotPlacements < robots.length) {
+    placeRobot(this);
+    if (robotPlacements === robots.length) {
+      highlightValidPlacements(); // 机器人放置完毕后高亮合法放置的格子
+    }
+  } else if (humanPlacements < 2) {
+    placeHuman(this);
+    if (humanPlacements === 2) {
+      startGame(); // 所有人类放置完毕后开始游戏
+    }
+  }
+}
+
+// 放置机器人
+function placeRobot(cell) {
+  if (!cell.classList.contains('robot') && !cell.classList.contains('human')) {
+    cell.classList.add('robot', robots[robotPlacements]);
+    cell.dataset.robotType = robots[robotPlacements];
+    robotPlacements++;
+  }
+}
+
+// 放置人类角色
+function placeHuman(cell) {
+  if (isValidPlacement(cell, 'human')) {
+    cell.classList.add('human', 'player' + (humanPlacements + 1));
+    cell.dataset.player = 'player' + (humanPlacements + 1); // 存储玩家编号
+    humanPlacements++;
+    if (humanPlacements === 2) {
+      startGame(); // 所有人类放置完毕后开始游戏
+    }
+  }
+}
+// 高亮所有符合proxemics规则的格子
+function highlightValidPlacements() {
+  const cells = Array.from(gameBoard.children);
+  cells.forEach(cell => {
+    if (isValidPlacement(cell, 'human')) {
+      cell.classList.add('valid-placement');
+    }
+  });
+}
+
+// 清除所有的高亮
+function clearHighlights() {
+  const cells = Array.from(gameBoard.children);
+  cells.forEach(cell => {
+    cell.classList.remove('valid-placement');
+  });
+}
+
+// 检查是否符合proxemics规则并且没有被其他玩家占据
+function isValidPlacement(cell, type) {
+  if (type === 'human') {
+    if (cell.classList.contains('human')) {
+      // 如果已经有玩家占据了这个格子，返回false
+      return false;
+    }
+    const cells = Array.from(gameBoard.children);
+    for (const robotType in proxemicsRules) {
+      const distance = proxemicsRules[robotType];
+      const robotCells = cells.filter(c => c.classList.contains('robot') && c.dataset.robotType === robotType);
+      for (const robotCell of robotCells) {
+        const robotIndex = cells.indexOf(robotCell);
+        const cellIndex = cells.indexOf(cell);
+        const robotRow = Math.floor(robotIndex / 9);
+        const robotCol = robotIndex % 9;
+        const cellRow = Math.floor(cellIndex / 9);
+        const cellCol = cellIndex % 9;
+        const dist = Math.abs(robotRow - cellRow) + Math.abs(robotCol - cellCol); // 曼哈顿距离
+        // 如果距离太近，则放置无效
+        if (dist <= distance) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+createBoard();
+</script>
+</body>
+</html>
